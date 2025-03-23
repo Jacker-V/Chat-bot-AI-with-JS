@@ -1,11 +1,17 @@
 const chatBody = document.querySelector(".chat-body");
 const messageInput = document.querySelector(".message-input");
 const sendMessageButton = document.querySelector("#send-message");
+const fileInput = document.querySelector("#file-input");
+
 
 const API_KEY = "AIzaSyCRX4ytbJXNhdH3OSJ36NWMPgZSEWXEyS4"; 
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
 const userData ={
-    message: null
+    message: null,
+    file: {
+        data: null,
+        mime_type: null
+    }
 }
 
 //Tao ra message va gui di
@@ -25,7 +31,7 @@ const generateBotResponse = async(incomingMessageDiv) =>{
         headers: { "Content-Type": "application/json"},
         body: JSON.stringify({
             contents: [{
-                parts:[{text: userData.message}]
+                parts:[{text: userData.message}, ...(userData.file.data ? [{inline_data: userData.file}] : [])]
                 }]
         })
     }
@@ -34,12 +40,13 @@ const generateBotResponse = async(incomingMessageDiv) =>{
         const data = await response.json();
         if(!response.ok) throw new Error(data.error.message);
 
-        const apiResponseText = data.candidates[0].content.parts[0].text.trim();
+        const apiResponseText = data.candidates[0].content.parts[0].text.replace(/\*\*(.*?)\*\*/g,"$1").trim();
         console.log(data);
         messageElement.innerText =  apiResponseText;
     }catch(error){
         console.log(error);
-
+        messageElement.innerText =  error.message;
+        messageElement.style.color = "#ff0000";
     }finally{
         incomingMessageDiv.classList.remove("thinking");
     }
@@ -56,6 +63,7 @@ const handleOutgoingMessage = (e) =>{
     const outgoingMessageDiv = createMessageElement(messageContent, "user-message");
     outgoingMessageDiv.querySelector(".message-text").textContent = userData.message;
     chatBody.appendChild(outgoingMessageDiv);
+    chatBody.scrollTo({ top : chatBody.scrollHeight, behavior: "smooth"});
     // Tra ve dg suy nghi
     setTimeout(() =>{
         const messageContent = `<svg class="bot-avatar" xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 1024 1024">
@@ -71,6 +79,7 @@ const handleOutgoingMessage = (e) =>{
 
         const incomingMessageDiv = createMessageElement(messageContent, "bot-message","thinking");
         chatBody.appendChild(incomingMessageDiv);
+        chatBody.scrollTo({ top : chatBody.scrollHeight, behavior: "smooth"});
         generateBotResponse(incomingMessageDiv);
     },600);
 }
@@ -84,4 +93,23 @@ messageInput.addEventListener("keydown", (e) =>{
     }
 })
 
-sendMessageButton.addEventListener("click", (e)=> handleOutgoingMessage(e))
+fileInput.addEventListener("change",() =>{
+    const file = fileInput.files[0];
+    if(!file) return;
+    // console.log(file);
+    const reader = new FileReader();
+    reader.onload = (e) =>{
+        const base64String = e.target.result.split(",")[1];
+        userData.file = {
+            data: base64String,
+            mime_type: file.type
+        }
+        // console.log(userData);
+        fileInput.value = "";
+        
+    }
+    reader.readAsDataURL(file);
+})
+
+sendMessageButton.addEventListener("click", (e)=> handleOutgoingMessage(e));
+document.querySelector("#file-upload").addEventListener("click",() => fileInput.click());
